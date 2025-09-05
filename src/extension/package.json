@@ -44,8 +44,8 @@
         "category": "TeamSync"
       },
       {
-        "command": "teamsync.showPanel",
-        "title": "TeamSync 패널 열기",
+        "command": "teamsync.selectTeam",
+        "title": "팀 선택",
         "category": "TeamSync"
       }
     ],
