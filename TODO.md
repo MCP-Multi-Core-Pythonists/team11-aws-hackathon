@@ -8,8 +8,10 @@
 - [x] TypeScript 설정
 - [x] 기본 명령어 등록 (login, logout, sync)
 - [x] 인증 프로바이더 구현
+- [x] 동기화 엔진 기본 구조
 - [x] 상태바 UI 구현
 - [x] 로깅 유틸리티
+- [x] 웹뷰 패널 구현
 - [ ] OAuth 2.0 Device Flow 테스트
 - [ ] 토큰 관리 및 갱신 로직 검증
 - [ ] 확장 빌드 및 패키징
@@ -18,13 +20,19 @@
 - [x] Express + TypeScript 프로젝트 설정
 - [x] 기본 미들웨어 설정 (CORS, Helmet, Rate Limiting)
 - [x] 서버 엔트리 포인트
+- [x] 사용자 모델 (Sequelize)
+- [x] 팀 모델 (Sequelize)
+- [x] 인증 라우트 구조
+- [x] 인증 컨트롤러 구현
+- [x] 에러 핸들링 미들웨어
+- [x] 요청 로깅 미들웨어
+- [x] 로거 유틸리티
 - [ ] 데이터베이스 연결 설정 (PostgreSQL)
 - [ ] Redis 연결 설정
-- [ ] JWT 토큰 생성/검증 로직
-- [ ] OAuth 2.0 연동 (Google, GitHub)
-- [ ] 기본 인증 API 구현
-- [ ] 에러 핸들링 미들웨어
-- [ ] 요청 로깅 미들웨어
+- [ ] JWT 토큰 생성/검증 로직 완성
+- [ ] OAuth 2.0 연동 (Google, GitHub) 완성
+- [ ] 실제 인증 미들웨어 구현
+- [ ] 입력 검증 미들웨어 완성
 
 ### Frontend Web Console
 - [x] Vite + React + TypeScript 프로젝트 설정
