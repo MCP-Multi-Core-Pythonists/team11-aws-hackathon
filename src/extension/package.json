@@ -24,6 +24,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "teamsync.register",
+        "title": "회원가입",
+        "category": "TeamSync"
+      },
+      {
         "command": "teamsync.login",
         "title": "로그인",
         "category": "TeamSync"
@@ -34,18 +39,23 @@
         "category": "TeamSync"
       },
       {
-        "command": "teamsync.syncToRemote",
-        "title": "설정을 원격으로 동기화",
-        "category": "TeamSync"
-      },
-      {
-        "command": "teamsync.syncFromRemote",
-        "title": "원격에서 설정 가져오기",
+        "command": "teamsync.status",
+        "title": "상태 확인",
         "category": "TeamSync"
       },
       {
         "command": "teamsync.selectTeam",
         "title": "팀 선택",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.sync",
+        "title": "설정 동기화",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.bookmarks",
+        "title": "북마크 보기",
         "category": "TeamSync"
       }
     ],
