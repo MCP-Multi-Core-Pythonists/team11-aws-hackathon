@@ -4,6 +4,9 @@ import { Logger } from './utils/logger';
 import { connectDatabase } from './config/database';
 import { connectRedis } from './config/redis';
 
+// 모델 연관관계 설정을 위한 import
+import './models';
+
 // 환경 변수 로드
 dotenv.config();
 

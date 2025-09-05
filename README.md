@@ -1,24 +1,115 @@
-# MCP(Multi-Core Pythonists) : 미정
+# TeamSync Pro
 
-Amazon Q Developer Hackathon으로 구현하고자 하는 아이디어를 설명합니다.
+팀 개발 환경 설정 동기화 및 협업 도구
 
-## 어플리케이션 개요
+## 🚀 빠른 시작
 
-구현하고자 하는 어플리케이션의 목적 및 기능과 같은 어플리케이션에 대한 설명을 입력합니다.
+### 1. 개발 환경 설정
 
-## 주요 기능
+```bash
+# 의존성 설치
+./scripts/dev-setup.sh
 
-어플리케이션의 주요 기능 들을 설명합니다. 가능하다면 각 화면의 캡처를 기반으로 설명 자료를 작성합니다.
+# 환경 변수 설정
+cp src/backend/.env.example src/backend/.env
+# .env 파일을 편집하여 데이터베이스 및 OAuth 설정
+```
 
-## 동영상 데모
+### 2. 데이터베이스 설정
 
-Amazon Q Developer로 구현한 어플리케이션의 데모 영상을 입력합니다.
-**Git의 Readme에는 GIF 형식으로 업로드하며, 원본 동영상은 발표 Presentation에 제출합니다.**
+```bash
+# PostgreSQL 설치 (macOS)
+brew install postgresql
+brew services start postgresql
 
-## 리소스 배포하기
+# 데이터베이스 생성
+createdb teamsync
 
-해당 코드를 AWS 상에 배포하기 위한 방법을 설명합니다. 인프라를 배포했을 경우 출력되는 AWS 아키텍처도 함께 포함하며, 리소스를 삭제하는 방안도 함께 작성합니다.
+# Redis 설치 및 시작
+brew install redis
+brew services start redis
+```
 
-## 프로젝트 기대 효과 및 예상 사용 사례
+### 3. 개발 서버 실행
 
-해당 프로젝트의 기대 효과와 예상되는 사용 사례를 작성합니다.
+```bash
+# Backend (터미널 1)
+cd src/backend
+npm run dev
+
+# Frontend (터미널 2)
+cd src/frontend
+npm run dev
+
+# VS Code Extension (VS Code에서)
+# 1. src/extension 폴더를 VS Code로 열기
+# 2. F5 키를 눌러 Extension Development Host 실행
+```
+
+## 📁 프로젝트 구조
+
+```
+├── src/
+│   ├── extension/          # VS Code Extension
+│   ├── backend/           # Node.js API Server
+│   └── frontend/          # React Web Console
+├── docs/                  # 상세 구현 문서
+├── prompts/              # AI 프롬프트 템플릿
+├── templates/            # 개발 템플릿
+└── scripts/              # 개발 스크립트
+```
+
+## 🎯 핵심 기능
+
+### ✅ 구현 완료
+- **VS Code Extension**: 인증, 동기화, UI 컴포넌트
+- **Backend API**: 인증, 팀 관리, 설정 동기화
+- **데이터베이스**: PostgreSQL 모델 및 관계
+- **보안**: JWT, OAuth 2.0, 권한 관리
+
+### 🔄 진행 중
+- **Frontend UI**: React 컴포넌트 구현
+- **실시간 동기화**: WebSocket 구현
+- **OAuth 연동**: Google, GitHub 실제 연동
+
+## 🛠️ 기술 스택
+
+- **Frontend**: React 18, TypeScript, Vite
+- **Backend**: Node.js, Express, TypeScript
+- **Database**: PostgreSQL, Redis
+- **Extension**: VS Code API, TypeScript
+- **Auth**: JWT, OAuth 2.0
+
+## 📖 문서
+
+상세한 구현 문서는 `docs/` 폴더에서 확인할 수 있습니다:
+
+1. [프로젝트 아키텍처](docs/001-프로젝트아키텍처.md)
+2. [VS Code 확장 개발](docs/002-VS코드확장개발.md)
+3. [웹 콘솔 개발](docs/003-웹콘솔개발.md)
+4. [백엔드 API 개발](docs/004-백엔드API개발.md)
+5. [데이터베이스 설계](docs/005-데이터베이스설계.md)
+6. [인증 보안 구현](docs/006-인증보안구현.md)
+
+## 🎮 데모
+
+### VS Code Extension
+1. Command Palette에서 "TeamSync: 로그인" 실행
+2. 브라우저에서 인증 완료
+3. "TeamSync: 팀 선택"으로 동기화할 팀 선택
+4. "TeamSync: 설정을 원격으로 동기화" 실행
+
+### Web Console
+1. http://localhost:3000 접속
+2. Google/GitHub으로 로그인
+3. 팀 생성 및 멤버 초대
+4. 설정 히스토리 확인
+
+## 🤝 개발 팀
+
+**MCP (Multi-Core Pythonists)**
+- 해커톤 프로젝트: Amazon Q Developer Hackathon
+
+## 📄 라이선스
+
+MIT License
