@@ -1,0 +1,50 @@
+{
+  "name": "teamsync-pro",
+  "displayName": "TeamSync Pro",
+  "description": "팀 개발 환경 표준화 솔루션",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "teamsync.test",
+        "title": "Test",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.showStatus",
+        "title": "Show TeamSync Status",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.showLogs",
+        "title": "Show Logs",
+        "category": "TeamSync"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "simple-git": "^3.19.1"
+  }
+}
