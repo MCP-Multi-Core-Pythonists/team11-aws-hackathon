@@ -1,0 +1,77 @@
+{
+  "name": "teamsync-pro",
+  "displayName": "TeamSync Pro",
+  "description": "팀 개발 환경 설정 동기화 및 협업 도구",
+  "version": "0.1.0",
+  "publisher": "teamsync",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "team",
+    "sync",
+    "configuration",
+    "collaboration",
+    "settings"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "teamsync.login",
+        "title": "로그인",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.logout",
+        "title": "로그아웃",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.syncToRemote",
+        "title": "설정을 원격으로 동기화",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.syncFromRemote",
+        "title": "원격에서 설정 가져오기",
+        "category": "TeamSync"
+      },
+      {
+        "command": "teamsync.showPanel",
+        "title": "TeamSync 패널 열기",
+        "category": "TeamSync"
+      }
+    ],
+    "configuration": {
+      "title": "TeamSync Pro",
+      "properties": {
+        "teamsync.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "자동 동기화 활성화"
+        },
+        "teamsync.syncInterval": {
+          "type": "number",
+          "default": 300,
+          "description": "동기화 간격 (초)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}
