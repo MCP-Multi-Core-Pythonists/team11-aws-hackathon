@@ -95,7 +95,7 @@ async def register(request: RegisterRequest):
         "created_at": datetime.now().isoformat()
     }
     
-    return {"success": True, "message": "User registered successfully"}
+    return {"success": True, "message": "User registered successfully", "user_id": user_id}
 
 @app.post("/auth/login")
 async def login(request: LoginRequest):

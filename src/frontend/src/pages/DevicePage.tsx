@@ -35,7 +35,7 @@ const DevicePage: React.FC = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        await response.json();
         setMessage('✅ 디바이스 인증이 완료되었습니다! VS Code로 돌아가세요.');
         toast.success('디바이스 인증 완료!');
       } else {
