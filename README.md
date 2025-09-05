@@ -1,4 +1,4 @@
-# [팀이름] : [아이디어 이름]
+# MCP(Multi-Core Pythonists) : 미정
 
 Amazon Q Developer Hackathon으로 구현하고자 하는 아이디어를 설명합니다.
 
