@@ -1,0 +1,11 @@
+# VSCode
+.vscode
+
+# Node
+node_modules
+
+# out
+out
+
+# Mac
+.DS_Store
