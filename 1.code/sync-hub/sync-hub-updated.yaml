@@ -1,0 +1,640 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Sync Hub - Updated with Cognito Auth and Admin Features'
+
+Parameters:
+  GoogleClientId:
+    Type: String
+    Default: "demo-google-client-id"
+    Description: Google OAuth Client ID
+  GoogleClientSecret:
+    Type: String
+    Default: "demo-google-client-secret"
+    NoEcho: true
+    Description: Google OAuth Client Secret
+
+Resources:
+  # DynamoDB Tables (reuse existing)
+  SettingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sync-hub-settings
+      AttributeDefinitions:
+        - AttributeName: tenant_id
+          AttributeType: S
+        - AttributeName: setting_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenant_id
+          KeyType: HASH
+        - AttributeName: setting_id
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  GroupsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sync-hub-groups
+      AttributeDefinitions:
+        - AttributeName: tenant_id
+          AttributeType: S
+        - AttributeName: group_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenant_id
+          KeyType: HASH
+        - AttributeName: group_id
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  GroupMembersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sync-hub-group-members
+      AttributeDefinitions:
+        - AttributeName: tenant_id
+          AttributeType: S
+        - AttributeName: group_id#user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenant_id
+          KeyType: HASH
+        - AttributeName: group_id#user_id
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Pre-token generation Lambda
+  PreTokenLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: sync-hub-pre-token
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt PreTokenLambdaRole.Arn
+      Timeout: 30
+      Code:
+        ZipFile: |
+          import json
+          
+          def handler(event, context):
+              print(f"PreToken event: {json.dumps(event)}")
+              
+              # Extract user attributes
+              user_attributes = event.get('request', {}).get('userAttributes', {})
+              email = user_attributes.get('email', '')
+              
+              # Set tenant_id (use email prefix or default)
+              tenant_id = email.split('@')[0] if email else 'default'
+              
+              # Set admin status (demo: make admin@example.com admin)
+              is_admin = email == 'admin@example.com' or email.endswith('@admin.com')
+              
+              # Add custom claims
+              event['response'] = {
+                  'claimsOverrideDetails': {
+                      'claimsToAddOrOverride': {
+                          'tenant_id': tenant_id,
+                          'is_admin': str(is_admin).lower()
+                      }
+                  }
+              }
+              
+              print(f"Added claims: tenant_id={tenant_id}, is_admin={is_admin}")
+              return event
+
+  PreTokenLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: sync-hub-users
+      AliasAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      LambdaConfig:
+        PreTokenGeneration: !GetAtt PreTokenLambda.Arn
+
+  # Lambda permission for Cognito
+  PreTokenLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PreTokenLambda
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  # Google Identity Provider
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: "email profile openid"
+      AttributeMapping:
+        email: email
+        given_name: given_name
+        family_name: family_name
+
+  # User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: sync-hub-client
+      GenerateSecret: false
+      SupportedIdentityProviders:
+        - Google
+        - COGNITO
+      CallbackURLs:
+        - http://localhost:3000/callback
+        - https://localhost:3000/callback
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  # User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'sync-hub-${AWS::AccountId}'
+
+  # Lambda Execution Role with enhanced permissions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt SettingsTable.Arn
+                  - !GetAtt GroupsTable.Arn
+                  - !GetAtt GroupMembersTable.Arn
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:ListUsers
+                  - cognito-idp:AdminGetUser
+                Resource: !GetAtt UserPool.Arn
+
+  # Main API Lambda Function
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: sync-hub-api
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          SETTINGS_TABLE: !Ref SettingsTable
+          GROUPS_TABLE: !Ref GroupsTable
+          GROUP_MEMBERS_TABLE: !Ref GroupMembersTable
+      Code:
+        ZipFile: |
+          import json
+          import uuid
+          import time
+          import boto3
+          import os
+          from decimal import Decimal
+          from boto3.dynamodb.conditions import Key
+
+          class DecimalEncoder(json.JSONEncoder):
+              def default(self, obj):
+                  if isinstance(obj, Decimal):
+                      return float(obj)
+                  return super(DecimalEncoder, self).default(obj)
+
+          def extract_claims(event):
+              try:
+                  authorizer = event.get("requestContext", {}).get("authorizer", {})
+                  jwt_claims = authorizer.get("jwt", {}).get("claims", {})
+                  return {
+                      "tenant_id": jwt_claims.get("tenant_id", "default"),
+                      "is_admin": jwt_claims.get("is_admin", "false"),
+                      "email": jwt_claims.get("email", ""),
+                      "sub": jwt_claims.get("sub", "")
+                  }
+              except Exception as e:
+                  print(f"Error extracting claims: {e}")
+                  return {"tenant_id": "default", "is_admin": "false", "email": "", "sub": ""}
+
+          def handler(event, context):
+              try:
+                  method = event.get("requestContext", {}).get("http", {}).get("method")
+                  path = event.get("requestContext", {}).get("http", {}).get("path")
+                  
+                  print(f"Processing {method} {path}")
+                  
+                  # Health check
+                  if path == "/_health":
+                      return {
+                          "statusCode": 200,
+                          "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                          "body": json.dumps({"ok": True, "message": "Sync Hub API is running!"})
+                      }
+                  
+                  # Initialize services
+                  dynamodb = boto3.resource('dynamodb')
+                  cognito = boto3.client('cognito-idp')
+                  settings_table = dynamodb.Table(os.environ['SETTINGS_TABLE'])
+                  groups_table = dynamodb.Table(os.environ['GROUPS_TABLE'])
+                  group_members_table = dynamodb.Table(os.environ['GROUP_MEMBERS_TABLE'])
+                  
+                  # Extract claims
+                  claims = extract_claims(event)
+                  tenant_id = claims.get("tenant_id", "default")
+                  is_admin = claims.get("is_admin", "false") == "true"
+                  
+                  # Settings endpoints
+                  if path == "/settings/public":
+                      response = settings_table.scan(
+                          FilterExpression="is_public = :public",
+                          ExpressionAttributeValues={":public": True}
+                      )
+                      return {
+                          "statusCode": 200,
+                          "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                          "body": json.dumps({"settings": response.get("Items", [])}, cls=DecimalEncoder)
+                      }
+                  
+                  elif path == "/settings" and method == "GET":
+                      response = settings_table.query(
+                          KeyConditionExpression=Key('tenant_id').eq(tenant_id)
+                      )
+                      return {
+                          "statusCode": 200,
+                          "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                          "body": json.dumps({"settings": response.get("Items", [])}, cls=DecimalEncoder)
+                      }
+                  
+                  elif path == "/settings" and method == "POST":
+                      body = json.loads(event.get("body", "{}"))
+                      setting = {
+                          "tenant_id": tenant_id,
+                          "setting_id": str(uuid.uuid4()),
+                          "name": body.get("name"),
+                          "value": body.get("value"),
+                          "is_public": body.get("is_public", False),
+                          "version": 1,
+                          "created_at": int(time.time()),
+                          "updated_at": int(time.time())
+                      }
+                      settings_table.put_item(Item=setting)
+                      return {
+                          "statusCode": 201,
+                          "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                          "body": json.dumps(setting, cls=DecimalEncoder)
+                      }
+                  
+                  # Groups endpoints
+                  elif path == "/groups" and method == "GET":
+                      response = groups_table.query(
+                          KeyConditionExpression=Key('tenant_id').eq(tenant_id)
+                      )
+                      return {
+                          "statusCode": 200,
+                          "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                          "body": json.dumps({"groups": response.get("Items", [])}, cls=DecimalEncoder)
+                      }
+                  
+                  elif path == "/groups" and method == "POST":
+                      body = json.loads(event.get("body", "{}"))
+                      group = {
+                          "tenant_id": tenant_id,
+                          "group_id": str(uuid.uuid4()),
+                          "name": body.get("name"),
+                          "description": body.get("description", ""),
+                          "owner_id": tenant_id,
+                          "created_at": int(time.time()),
+                          "updated_at": int(time.time())
+                      }
+                      groups_table.put_item(Item=group)
+                      return {
+                          "statusCode": 201,
+                          "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                          "body": json.dumps(group, cls=DecimalEncoder)
+                      }
+                  
+                  # Admin endpoints
+                  elif path.startswith("/admin/groups/") and path.endswith("/members") and method == "POST":
+                      if not is_admin:
+                          return {
+                              "statusCode": 403,
+                              "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                              "body": json.dumps({"error": "Admin access required"})
+                          }
+                      
+                      group_id = path.split("/")[3]
+                      body = json.loads(event.get("body", "{}"))
+                      email = body.get("email")
+                      role = body.get("role", "member")
+                      
+                      if not email or role not in ["member", "admin"]:
+                          return {
+                              "statusCode": 400,
+                              "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                              "body": json.dumps({"error": "Invalid email or role"})
+                          }
+                      
+                      # Look up user in Cognito
+                      try:
+                          response = cognito.list_users(
+                              UserPoolId=os.environ['USER_POOL_ID'],
+                              Filter=f'email = "{email}"',
+                              Limit=1
+                          )
+                          
+                          if not response['Users']:
+                              return {
+                                  "statusCode": 404,
+                                  "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                                  "body": json.dumps({"error": f"User with email {email} not found"})
+                              }
+                          
+                          user_id = response['Users'][0]['Username']
+                          
+                          # Add to group
+                          member_record = {
+                              "tenant_id": tenant_id,
+                              "group_id#user_id": f"{group_id}#{user_id}",
+                              "group_id": group_id,
+                              "user_id": user_id,
+                              "email": email,
+                              "role": role,
+                              "added_at": int(time.time())
+                          }
+                          
+                          group_members_table.put_item(Item=member_record)
+                          
+                          return {
+                              "statusCode": 200,
+                              "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                              "body": json.dumps({
+                                  "message": f"User {email} added to group {group_id} with role {role}",
+                                  "member": member_record
+                              }, cls=DecimalEncoder)
+                          }
+                          
+                      except Exception as e:
+                          print(f"Error adding user to group: {e}")
+                          return {
+                              "statusCode": 500,
+                              "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                              "body": json.dumps({"error": "Failed to add user to group"})
+                          }
+                  
+                  return {
+                      "statusCode": 404,
+                      "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                      "body": json.dumps({"error": "Not found"})
+                  }
+                  
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  return {
+                      "statusCode": 500,
+                      "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+                      "body": json.dumps({"error": str(e)})
+                  }
+
+  # HTTP API Gateway
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: sync-hub-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - "*"
+        AllowHeaders:
+          - "*"
+
+  # JWT Authorizer
+  JwtAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref HttpApi
+      AuthorizerType: JWT
+      IdentitySource:
+        - $request.header.Authorization
+      Name: JwtAuthorizer
+      JwtConfiguration:
+        Audience:
+          - !Ref UserPoolClient
+        Issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+
+  # Lambda Integration
+  LambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations'
+      PayloadFormatVersion: '2.0'
+
+  # Lambda Permission
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+
+  # API Routes
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /_health'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  SettingsPublicRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /settings/public'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  SettingsGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /settings'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+
+  SettingsPostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /settings'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+
+  GroupsGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /groups'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+
+  GroupsPostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /groups'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+
+  AdminGroupMembersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /admin/groups/{id}/members'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref JwtAuthorizer
+
+  # Default Stage
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
+
+  # SSM Parameters
+  ApiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /sync-hub/api/url
+      Type: String
+      Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+
+  UserPoolIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /sync-hub/auth/user-pool-id
+      Type: String
+      Value: !Ref UserPool
+
+  UserPoolClientIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /sync-hub/auth/user-pool-client-id
+      Type: String
+      Value: !Ref UserPoolClient
+
+  HostedUiUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /sync-hub/auth/hosted-ui-url
+      Type: String
+      Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&scope=email+openid+profile&redirect_uri=http://localhost:3000/callback&identity_provider=Google'
+
+Outputs:
+  ApiUrl:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+    Export:
+      Name: SyncHub-ApiUrl
+
+  UserPoolId:
+    Description: 'Cognito User Pool ID'
+    Value: !Ref UserPool
+    Export:
+      Name: SyncHub-UserPoolId
+
+  UserPoolClientId:
+    Description: 'Cognito User Pool Client ID'
+    Value: !Ref UserPoolClient
+    Export:
+      Name: SyncHub-UserPoolClientId
+
+  HostedUiUrl:
+    Description: 'Cognito Hosted UI URL with Google'
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&scope=email+openid+profile&redirect_uri=http://localhost:3000/callback&identity_provider=Google'
+    Export:
+      Name: SyncHub-HostedUiUrl
+
+  JwksUrl:
+    Description: 'JWKS URL for JWT verification'
+    Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/jwks.json'
+    Export:
+      Name: SyncHub-JwksUrl

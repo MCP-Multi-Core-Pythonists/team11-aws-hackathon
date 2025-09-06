@@ -1,0 +1,258 @@
+{
+ "Resources": {
+  "TenantsTableB701DC57": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "tenant_id",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+     {
+      "AttributeName": "tenant_id",
+      "KeyType": "HASH"
+     }
+    ],
+    "TableName": "saas-tenants-dev"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "Data-dev/TenantsTable/Resource"
+   }
+  },
+  "UsersTable9725E9C8": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "user_id",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "tenant_id",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "GlobalSecondaryIndexes": [
+     {
+      "IndexName": "tenant-index",
+      "KeySchema": [
+       {
+        "AttributeName": "tenant_id",
+        "KeyType": "HASH"
+       }
+      ],
+      "Projection": {
+       "ProjectionType": "ALL"
+      }
+     }
+    ],
+    "KeySchema": [
+     {
+      "AttributeName": "user_id",
+      "KeyType": "HASH"
+     }
+    ],
+    "TableName": "saas-users-dev"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "Data-dev/UsersTable/Resource"
+   }
+  },
+  "ItemsTable5AAC2C46": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "tenant_id",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "item_id",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+     {
+      "AttributeName": "tenant_id",
+      "KeyType": "HASH"
+     },
+     {
+      "AttributeName": "item_id",
+      "KeyType": "RANGE"
+     }
+    ],
+    "TableName": "saas-items-dev"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "Data-dev/ItemsTable/Resource"
+   }
+  },
+  "TenantsTableParam636EAE09": {
+   "Type": "AWS::SSM::Parameter",
+   "Properties": {
+    "Name": "/saas/dev/data/tenants-table",
+    "Type": "String",
+    "Value": {
+     "Ref": "TenantsTableB701DC57"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Data-dev/TenantsTableParam/Resource"
+   }
+  },
+  "UsersTableParam074E7D82": {
+   "Type": "AWS::SSM::Parameter",
+   "Properties": {
+    "Name": "/saas/dev/data/users-table",
+    "Type": "String",
+    "Value": {
+     "Ref": "UsersTable9725E9C8"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Data-dev/UsersTableParam/Resource"
+   }
+  },
+  "ItemsTableParam387B42D0": {
+   "Type": "AWS::SSM::Parameter",
+   "Properties": {
+    "Name": "/saas/dev/data/items-table",
+    "Type": "String",
+    "Value": {
+     "Ref": "ItemsTable5AAC2C46"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Data-dev/ItemsTableParam/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/z2LUQ7CIBBEz9J/WAW9gQewqf6bLaBiy2JgiWka7m5bE79m5s2MBq2OsG/wk6Wxgxx9D/OF0QxiQbfZToQh2gVesR+dON1pM1XkHNZl8vRoMWFw7NJa/0OtonM5lmS227nwu3AV7cTPSLsDKA1KNa/svUyF2AcH3U+/wQtvcZUAAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "Data-dev/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "TenantsTableName": {
+   "Value": {
+    "Ref": "TenantsTableB701DC57"
+   }
+  },
+  "UsersTableName": {
+   "Value": {
+    "Ref": "UsersTable9725E9C8"
+   }
+  },
+  "ItemsTableName": {
+   "Value": {
+    "Ref": "ItemsTable5AAC2C46"
+   }
+  },
+  "ExportsOutputFnGetAttUsersTable9725E9C8Arn5684EF99": {
+   "Value": {
+    "Fn::GetAtt": [
+     "UsersTable9725E9C8",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "Data-dev:ExportsOutputFnGetAttUsersTable9725E9C8Arn5684EF99"
+   }
+  },
+  "ExportsOutputFnGetAttTenantsTableB701DC57ArnFFAEC087": {
+   "Value": {
+    "Fn::GetAtt": [
+     "TenantsTableB701DC57",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "Data-dev:ExportsOutputFnGetAttTenantsTableB701DC57ArnFFAEC087"
+   }
+  },
+  "ExportsOutputFnGetAttItemsTable5AAC2C46ArnC2DB7822": {
+   "Value": {
+    "Fn::GetAtt": [
+     "ItemsTable5AAC2C46",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "Data-dev:ExportsOutputFnGetAttItemsTable5AAC2C46ArnC2DB7822"
+   }
+  },
+  "ExportsOutputRefTenantsTableB701DC57BE8E768B": {
+   "Value": {
+    "Ref": "TenantsTableB701DC57"
+   },
+   "Export": {
+    "Name": "Data-dev:ExportsOutputRefTenantsTableB701DC57BE8E768B"
+   }
+  },
+  "ExportsOutputRefUsersTable9725E9C857961836": {
+   "Value": {
+    "Ref": "UsersTable9725E9C8"
+   },
+   "Export": {
+    "Name": "Data-dev:ExportsOutputRefUsersTable9725E9C857961836"
+   }
+  },
+  "ExportsOutputRefItemsTable5AAC2C4611DBACFF": {
+   "Value": {
+    "Ref": "ItemsTable5AAC2C46"
+   },
+   "Export": {
+    "Name": "Data-dev:ExportsOutputRefItemsTable5AAC2C4611DBACFF"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

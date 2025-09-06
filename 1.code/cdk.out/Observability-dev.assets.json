@@ -1,0 +1,21 @@
+{
+  "version": "48.0.0",
+  "files": {
+    "61445dba1a7f675027a727cba94617b71e1425b28e14ae1ef573f6e54760b858": {
+      "displayName": "Observability-dev Template",
+      "source": {
+        "path": "Observability-dev.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-us-east-1-1d3f703b": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1",
+          "objectKey": "61445dba1a7f675027a727cba94617b71e1425b28e14ae1ef573f6e54760b858.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

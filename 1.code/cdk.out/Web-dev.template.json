@@ -1,0 +1,227 @@
+{
+ "Resources": {
+  "AppRunnerRole380538BF": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "tasks.apprunner.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonSSMReadOnlyAccess"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "Web-dev/AppRunnerRole/Resource"
+   }
+  },
+  "UserApp": {
+   "Type": "AWS::AppRunner::Service",
+   "Properties": {
+    "InstanceConfiguration": {
+     "Cpu": "0.25 vCPU",
+     "InstanceRoleArn": {
+      "Fn::GetAtt": [
+       "AppRunnerRole380538BF",
+       "Arn"
+      ]
+     },
+     "Memory": "0.5 GB"
+    },
+    "ServiceName": "saas-user-dev",
+    "SourceConfiguration": {
+     "AutoDeploymentsEnabled": false,
+     "CodeRepository": {
+      "CodeConfiguration": {
+       "ConfigurationSource": "REPOSITORY"
+      },
+      "RepositoryUrl": "https://github.com/placeholder/repo",
+      "SourceCodeVersion": {
+       "Type": "BRANCH",
+       "Value": "main"
+      }
+     }
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Web-dev/UserApp"
+   }
+  },
+  "AdminApp": {
+   "Type": "AWS::AppRunner::Service",
+   "Properties": {
+    "InstanceConfiguration": {
+     "Cpu": "0.25 vCPU",
+     "InstanceRoleArn": {
+      "Fn::GetAtt": [
+       "AppRunnerRole380538BF",
+       "Arn"
+      ]
+     },
+     "Memory": "0.5 GB"
+    },
+    "ServiceName": "saas-admin-dev",
+    "SourceConfiguration": {
+     "AutoDeploymentsEnabled": false,
+     "CodeRepository": {
+      "CodeConfiguration": {
+       "ConfigurationSource": "REPOSITORY"
+      },
+      "RepositoryUrl": "https://github.com/placeholder/repo",
+      "SourceCodeVersion": {
+       "Type": "BRANCH",
+       "Value": "main"
+      }
+     }
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Web-dev/AdminApp"
+   }
+  },
+  "UserAppUrlParam409DBC2D": {
+   "Type": "AWS::SSM::Parameter",
+   "Properties": {
+    "Name": "/saas/dev/web/user-url",
+    "Type": "String",
+    "Value": {
+     "Fn::Join": [
+      "",
+      [
+       "https://",
+       {
+        "Fn::GetAtt": [
+         "UserApp",
+         "ServiceUrl"
+        ]
+       }
+      ]
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Web-dev/UserAppUrlParam/Resource"
+   }
+  },
+  "AdminAppUrlParamB841C027": {
+   "Type": "AWS::SSM::Parameter",
+   "Properties": {
+    "Name": "/saas/dev/web/admin-url",
+    "Type": "String",
+    "Value": {
+     "Fn::Join": [
+      "",
+      [
+       "https://",
+       {
+        "Fn::GetAtt": [
+         "AdminApp",
+         "ServiceUrl"
+        ]
+       }
+      ]
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Web-dev/AdminAppUrlParam/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/z2MUQ7CIBAFz9J/WKV6Aw9gQw9gEFddWyhZFo1puLutJn5N3iTzWmjNHraNe2XtL4Me6QxzL84PalGnmVyA2U4jqsM1rqzKpcQlRmRYVI/8JI8q57B2TPHWOXYBBXlN/qNWZTFPhf336lgkFamqe8t9ipsdmBaMaR6ZSC/vQgHB/vgBYpDZ1KMAAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "Web-dev/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "UserAppUrl": {
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "https://",
+      {
+       "Fn::GetAtt": [
+        "UserApp",
+        "ServiceUrl"
+       ]
+      }
+     ]
+    ]
+   }
+  },
+  "AdminAppUrl": {
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "https://",
+      {
+       "Fn::GetAtt": [
+        "AdminApp",
+        "ServiceUrl"
+       ]
+      }
+     ]
+    ]
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Hub - Web Console</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .login-screen { text-align: center; padding: 50px 20px; }
+        .login-screen h1 { color: #333; margin-bottom: 30px; }
+        .login-btn { background: #4285f4; color: white; padding: 15px 30px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .login-btn:hover { background: #357ae8; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #ddd; padding-bottom: 20px; }
+        .user-info { color: #666; }
+        .logout-btn { background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 4px; }
+        .admin-section { border-color: #ffc107; background: #fff3cd; }
+        .btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .btn.success { background: #28a745; }
+        .btn.danger { background: #dc3545; }
+        input, textarea, select { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .result { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 10px 0; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .hidden { display: none; }
+        .error { color: #dc3545; background: #f8d7da; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .success { color: #155724; background: #d4edda; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Screen -->
+        <div id="login-screen" class="login-screen">
+            <h1>🔄 Sync Hub</h1>
+            <p>Multi-tenant SaaS for VS Code Extension + Web Console</p>
+            <a href="#" id="login-btn" class="login-btn">🔐 Sign in with Google</a>
+        </div>
+
+        <!-- Main App -->
+        <div id="main-app" class="hidden">
+            <div class="header">
+                <h1>🔄 Sync Hub Console</h1>
+                <div class="user-info">
+                    <span id="user-email"></span>
+                    <span id="admin-badge" class="hidden" style="background: #ffc107; padding: 4px 8px; border-radius: 4px; margin-left: 10px;">ADMIN</span>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <div class="grid">
+                <!-- Settings Management -->
+                <div class="section">
+                    <h3>🛠 Settings Management</h3>
+                    <input type="text" id="setting-name" placeholder="Setting name" value="My Theme">
+                    <textarea id="setting-value" placeholder="JSON content">{"theme": "dark", "fontSize": 14}</textarea>
+                    <label><input type="checkbox" id="setting-public"> Make Public</label><br><br>
+                    <button class="btn" onclick="createSetting()">Create Setting</button>
+                    <button class="btn" onclick="listMySettings()">List Mine</button>
+                    <button class="btn success" onclick="listPublicSettings()">List Public</button>
+                    <div id="settings-result" class="result"></div>
+                </div>
+
+                <!-- Groups Management -->
+                <div class="section">
+                    <h3>👥 Groups</h3>
+                    <input type="text" id="group-name" placeholder="Group name" value="Development Team">
+                    <textarea id="group-description" placeholder="Description">Team for development collaboration</textarea>
+                    <button class="btn" onclick="createGroup()">Create Group</button>
+                    <button class="btn" onclick="listGroups()">List Groups</button>
+                    <div id="groups-result" class="result"></div>
+                </div>
+            </div>
+
+            <!-- Admin Panel -->
+            <div id="admin-panel" class="section admin-section hidden">
+                <div id="admin-app">Loading Admin Panel…</div>
+                <script>
+                  const API_BASE = "https://l7ycatge3j.execute-api.us-east-1.amazonaws.com";
+
+                  function decodeJwt(token) {
+                    const payload = token.split('.')[1];
+                    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+                  }
+
+                  async function main() {
+                    const el = document.getElementById("admin-app");
+                    const idToken = localStorage.getItem("id_token");
+
+                    if (!idToken) {
+                      el.innerHTML = "<h2>Sign in required</h2><p>Please sign in via Cognito Hosted UI.</p>";
+                      return;
+                    }
+
+                    let claims = {};
+                    try { claims = decodeJwt(idToken); } catch (e) {
+                      el.innerHTML = "<h2>Invalid token</h2><p>Please sign in again.</p>";
+                      return;
+                    }
+
+                    if (claims["custom:is_admin"] !== "true") {
+                      el.innerHTML = "<h2>Access denied</h2><p>Your account is not an admin.</p>";
+                      return;
+                    }
+
+                    el.innerHTML = `
+                      <h2>Admin Panel</h2>
+                      <section style="display:flex;gap:16px;flex-wrap:wrap;">
+                        <div style="flex:1 1 340px;border:1px solid #eee;border-radius:12px;padding:16px;">
+                          <h3>Users</h3>
+                          <input id="q" placeholder="Search email or name" />
+                          <div style="margin-top:8px;">
+                            <button id="btnList">List</button>
+                            <button id="btnLookup">Lookup</button>
+                          </div>
+                          <pre id="outUsers" style="margin-top:12px;white-space:pre-wrap;"></pre>
+                        </div>
+                        <div style="flex:1 1 340px;border:1px solid #eee;border-radius:12px;padding:16px;">
+                          <h3>Analytics</h3>
+                          <select id="range">
+                            <option value="1d">1d</option>
+                            <option value="7d" selected>7d</option>
+                            <option value="30d">30d</option>
+                          </select>
+                          <div style="margin-top:8px;">
+                            <button id="btnOverview">Overview</button>
+                            <button id="btnSeries">Timeseries</button>
+                          </div>
+                          <pre id="outAnalytics" style="margin-top:12px;white-space:pre-wrap;"></pre>
+                        </div>
+                      </section>
+                    `;
+
+                    const authHeader = { Authorization: `Bearer ${idToken}` };
+
+                    document.getElementById("btnList").onclick = async () => {
+                      const query = (document.getElementById("q").value || "").trim();
+                      const url = new URL(`${API_BASE}/admin/users`);
+                      if (query) url.searchParams.set("query", query);
+                      url.searchParams.set("limit", "20");
+                      const r = await fetch(url, { headers: authHeader });
+                      document.getElementById("outUsers").textContent = await r.text();
+                    };
+
+                    document.getElementById("btnLookup").onclick = async () => {
+                      const email = (document.getElementById("q").value || "").trim();
+                      const r = await fetch(`${API_BASE}/admin/users/lookup`, {
+                        method: "POST",
+                        headers: { ...authHeader, "Content-Type": "application/json" },
+                        body: JSON.stringify({ email })
+                      });
+                      document.getElementById("outUsers").textContent = await r.text();
+                    };
+
+                    document.getElementById("btnOverview").onclick = async () => {
+                      const range = document.getElementById("range").value;
+                      const r = await fetch(`${API_BASE}/admin/analytics?range=${range}`, { headers: authHeader });
+                      document.getElementById("outAnalytics").textContent = await r.text();
+                    };
+
+                    document.getElementById("btnSeries").onclick = async () => {
+                      const range = document.getElementById("range").value;
+                      const r = await fetch(`${API_BASE}/admin/analytics/timeseries?range=${range}`, { headers: authHeader });
+                      document.getElementById("outAnalytics").textContent = await r.text();
+                    };
+                  }
+                  main();
+                </script>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - will be replaced during deployment
+        const CONFIG = {
+            API_BASE: 'API_ENDPOINT_PLACEHOLDER',
+            HOSTED_UI_URL: 'https://sync-hub-851725240440.auth.us-east-1.amazoncognito.com/oauth2/authorize?client_id=7n568rmtbtp2tt8m0av2hl0f2n&response_type=code&scope=openid+email+profile&redirect_uri=https://d1iz4bwpzq14da.cloudfront.net/oauth2/callback&identity_provider=Google'
+        };
+
+        let currentUser = null;
+        let accessToken = null;
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set login URL
+            document.getElementById('login-btn').href = CONFIG.HOSTED_UI_URL;
+            
+            // Check for callback
+            if (window.location.pathname === '/callback') {
+                handleCallback();
+            } else {
+                // Check for existing session
+                accessToken = localStorage.getItem('accessToken');
+                if (accessToken) {
+                    try {
+                        currentUser = parseJWT(accessToken);
+                        showMainApp();
+                    } catch (e) {
+                        console.error('Invalid token:', e);
+                        showLoginScreen();
+                    }
+                } else {
+                    showLoginScreen();
+                }
+            }
+        });
+
+        function parseJWT(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        function handleCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            
+            if (code) {
+                // In a real implementation, exchange code for tokens
+                // For demo, simulate token
+                const demoToken = btoa(JSON.stringify({
+                    header: { alg: "RS256", typ: "JWT" }
+                })) + '.' + btoa(JSON.stringify({
+                    email: 'demo@example.com',
+                    tenant_id: 'demo-tenant',
+                    is_admin: 'true',
+                    exp: Math.floor(Date.now() / 1000) + 3600
+                })) + '.signature';
+                
+                accessToken = demoToken;
+                localStorage.setItem('accessToken', accessToken);
+                currentUser = parseJWT(accessToken);
+                
+                // Redirect to main app
+                window.history.replaceState({}, document.title, '/');
+                showMainApp();
+            } else {
+                showError('Authentication failed');
+                showLoginScreen();
+            }
+        }
+
+        function showLoginScreen() {
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('main-app').classList.add('hidden');
+        }
+
+        function showMainApp() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            
+            // Update user info
+            document.getElementById('user-email').textContent = currentUser.email;
+            
+            // Show admin panel if user is admin
+            if (currentUser.is_admin === 'true') {
+                document.getElementById('admin-badge').classList.remove('hidden');
+                document.getElementById('admin-panel').classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('accessToken');
+            accessToken = null;
+            currentUser = null;
+            showLoginScreen();
+        }
+
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            try {
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (accessToken) {
+                    headers['Authorization'] = `Bearer ${accessToken}`;
+                }
+
+                const response = await fetch(`${CONFIG.API_BASE}${endpoint}`, {
+                    method,
+                    headers,
+                    body: body ? JSON.stringify(body) : null
+                });
+
+                const data = await response.json();
+                return { status: response.status, data };
+            } catch (error) {
+                return { status: 0, data: { error: error.message } };
+            }
+        }
+
+        function displayResult(elementId, result) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(result, null, 2);
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.body.insertBefore(errorDiv, document.body.firstChild);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            document.body.insertBefore(successDiv, document.body.firstChild);
+            setTimeout(() => successDiv.remove(), 3000);
+        }
+
+        // Settings functions
+        async function createSetting() {
+            const name = document.getElementById('setting-name').value;
+            const value = document.getElementById('setting-value').value;
+            const isPublic = document.getElementById('setting-public').checked;
+
+            if (!name || !value) {
+                showError('Please fill in name and value');
+                return;
+            }
+
+            const result = await apiCall('/settings', 'POST', {
+                name,
+                value,
+                is_public: isPublic
+            });
+            
+            if (result.status === 201) {
+                showSuccess('Setting created successfully');
+            }
+            displayResult('settings-result', result);
+        }
+
+        async function listMySettings() {
+            const result = await apiCall('/settings');
+            displayResult('settings-result', result);
+        }
+
+        async function listPublicSettings() {
+            const result = await apiCall('/settings/public');
+            displayResult('settings-result', result);
+        }
+
+        // Groups functions
+        async function createGroup() {
+            const name = document.getElementById('group-name').value;
+            const description = document.getElementById('group-description').value;
+
+            if (!name) {
+                showError('Please fill in group name');
+                return;
+            }
+
+            const result = await apiCall('/groups', 'POST', {
+                name,
+                description
+            });
+            
+            if (result.status === 201) {
+                showSuccess('Group created successfully');
+            }
+            displayResult('groups-result', result);
+        }
+
+        async function listGroups() {
+            const result = await apiCall('/groups');
+            displayResult('groups-result', result);
+        }
+
+        
+    </script>
+</body>
+</html>

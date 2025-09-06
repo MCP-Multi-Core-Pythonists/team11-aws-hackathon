@@ -1,0 +1,942 @@
+openapi: 3.0.3
+info:
+  title: Sync Hub API
+  description: Multi-tenant SaaS for VS Code Extension + Web Console settings synchronization
+  version: 1.0.0
+  contact:
+    name: Sync Hub Support
+    email: support@synchub.dev
+servers:
+- url: https://l7ycatge3j.execute-api.us-east-1.amazonaws.com
+  description: Production API
+security:
+- bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from Cognito Hosted UI
+  schemas:
+    Error:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          type: string
+          description: Error message
+        detail:
+          type: string
+          description: Additional error details
+        request_id:
+          type: string
+          description: Request ID for tracking
+    Setting:
+      type: object
+      required:
+      - id
+      - name
+      - content
+      - visibility
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          example: settings_123456
+        name:
+          type: string
+          example: vscode-settings
+        content:
+          type: object
+          example:
+            editor.fontSize: 14
+        visibility:
+          type: string
+          enum:
+          - private
+          - public
+          - group
+          example: private
+        group_id:
+          type: string
+          nullable: true
+          example: group_789
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          example: 1
+    Group:
+      type: object
+      required:
+      - id
+      - name
+      - created_at
+      properties:
+        id:
+          type: string
+          example: group_123
+        name:
+          type: string
+          example: Development Team
+        description:
+          type: string
+          example: Settings for the dev team
+        created_at:
+          type: string
+          format: date-time
+        member_count:
+          type: integer
+          example: 5
+    GroupMember:
+      type: object
+      required:
+      - user_id
+      - email
+      - role
+      - joined_at
+      properties:
+        user_id:
+          type: string
+          example: user_456
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        role:
+          type: string
+          enum:
+          - member
+          - admin
+          example: member
+        joined_at:
+          type: string
+          format: date-time
+    CreateSettingRequest:
+      type: object
+      required:
+      - name
+      - content
+      properties:
+        name:
+          type: string
+          example: my-vscode-config
+        content:
+          type: object
+          example:
+            editor.fontSize: 16
+        visibility:
+          type: string
+          enum:
+          - private
+          - public
+          - group
+          default: private
+        group_id:
+          type: string
+          description: Required if visibility is 'group'
+    CreateGroupRequest:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          example: My Team
+        description:
+          type: string
+          example: Shared settings for my team
+    AdminUser:
+      type: object
+      required:
+      - user_id
+      - email
+      - status
+      - created_at
+      properties:
+        user_id:
+          type: string
+          example: user_123
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        status:
+          type: string
+          enum:
+          - CONFIRMED
+          - UNCONFIRMED
+          - ARCHIVED
+          example: CONFIRMED
+        created_at:
+          type: string
+          format: date-time
+        enabled:
+          type: boolean
+          example: true
+    AdminUsersList:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        next_cursor:
+          type: string
+          nullable: true
+        count:
+          type: integer
+          example: 25
+    UserLookupRequest:
+      type: object
+      required:
+      - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+    UserLookupResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/AdminUser'
+    UpdateMemberRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+          - member
+          - admin
+          example: member
+        status:
+          type: string
+          enum:
+          - active
+          - inactive
+          example: active
+    AnalyticsResponse:
+      type: object
+      properties:
+        range:
+          type: string
+          enum:
+          - 1d
+          - 7d
+          - 30d
+          example: 7d
+        total_settings:
+          type: integer
+          example: 150
+        public_settings:
+          type: integer
+          example: 25
+        private_settings:
+          type: integer
+          example: 125
+        total_members:
+          type: integer
+          example: 45
+        active_members:
+          type: integer
+          example: 40
+        inactive_members:
+          type: integer
+          example: 5
+        generated_at:
+          type: string
+          format: date-time
+    TimeseriesDataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        value:
+          type: integer
+          example: 15
+        metric:
+          type: string
+          example: settings
+    TimeseriesResponse:
+      type: object
+      properties:
+        metric:
+          type: string
+          example: settings
+        range:
+          type: string
+          example: 7d
+        interval:
+          type: string
+          example: day
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeseriesDataPoint'
+paths:
+  /_health:
+    get:
+      summary: Health check
+      description: Check API health status
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Sync Hub API is running!
+  /settings:
+    post:
+      summary: Create a new setting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSettingRequest'
+      responses:
+        '201':
+          description: Setting created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List user's settings
+      parameters:
+      - name: visibility
+        in: query
+        schema:
+          type: string
+          enum:
+          - private
+          - public
+          - group
+      - name: group_id
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Setting'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /settings/{id}:
+    get:
+      summary: Get a specific setting
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Setting retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '404':
+          description: Setting not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update a setting
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSettingRequest'
+      responses:
+        '200':
+          description: Setting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '404':
+          description: Setting not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete a setting
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Setting deleted successfully
+        '404':
+          description: Setting not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /settings/{id}/history:
+    get:
+      summary: Get setting history
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: History retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        version:
+                          type: integer
+                        content:
+                          type: object
+                        updated_at:
+                          type: string
+                          format: date-time
+  /settings/{id}/rollback:
+    post:
+      summary: Rollback setting to previous version
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - version
+              properties:
+                version:
+                  type: integer
+                  example: 2
+      responses:
+        '200':
+          description: Setting rolled back
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+  /settings/public:
+    get:
+      summary: List public settings
+      security: []
+      responses:
+        '200':
+          description: Public settings retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Setting'
+  /settings/{id}/visibility:
+    patch:
+      summary: Update setting visibility
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - visibility
+              properties:
+                visibility:
+                  type: string
+                  enum:
+                  - private
+                  - public
+                  - group
+                group_id:
+                  type: string
+      responses:
+        '200':
+          description: Visibility updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+  /groups:
+    post:
+      summary: Create a new group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+    get:
+      summary: List user's groups
+      responses:
+        '200':
+          description: Groups retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Group'
+  /groups/{group_id}:
+    get:
+      summary: Get a specific group
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Group retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+    patch:
+      summary: Update a group
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+    delete:
+      summary: Delete a group
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Group deleted successfully
+  /groups/{group_id}/members:
+    get:
+      summary: List group members
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Members retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GroupMember'
+  /groups/{group_id}/members/{user_id}:
+    patch:
+      summary: Update group member
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - role
+              properties:
+                role:
+                  type: string
+                  enum:
+                  - member
+                  - admin
+      responses:
+        '200':
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMember'
+    delete:
+      summary: Remove group member
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Member removed successfully
+  /admin/groups/{group_id}/members:
+    post:
+      summary: Add member to group (Admin only)
+      description: Add a new member to a group (requires is_admin=true claim)
+      parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: newuser@example.com
+                role:
+                  type: string
+                  enum:
+                  - member
+                  - admin
+                  default: member
+      responses:
+        '201':
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMember'
+        '403':
+          description: Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/users:
+    get:
+      summary: List users (Admin only)
+      description: List all users with pagination and search (requires is_admin=true)
+      parameters:
+      - name: query
+        in: query
+        schema:
+          type: string
+        description: Search query for email
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 20
+          maximum: 60
+        description: Number of users to return
+      - name: cursor
+        in: query
+        schema:
+          type: string
+        description: Pagination cursor
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUsersList'
+        '403':
+          description: Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/users/lookup:
+    post:
+      summary: Lookup user by email (Admin only)
+      description: Find a user by email address (requires is_admin=true)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLookupRequest'
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLookupResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/groups/{gid}/members/{uid}:
+    patch:
+      summary: Update group member (Admin only)
+      description: Update a group member's role or status (requires is_admin=true)
+      parameters:
+      - name: gid
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Group ID
+      - name: uid
+        in: path
+        required: true
+        schema:
+          type: string
+        description: User ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRequest'
+      responses:
+        '200':
+          description: Member updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMember'
+        '403':
+          description: Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Remove group member (Admin only)
+      description: Remove a member from a group (requires is_admin=true)
+      parameters:
+      - name: gid
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Group ID
+      - name: uid
+        in: path
+        required: true
+        schema:
+          type: string
+        description: User ID
+      responses:
+        '204':
+          description: Member removed successfully
+        '403':
+          description: Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/analytics:
+    get:
+      summary: Get analytics overview (Admin only)
+      description: Get analytics data for the tenant (requires is_admin=true)
+      parameters:
+      - name: range
+        in: query
+        schema:
+          type: string
+          enum:
+          - 1d
+          - 7d
+          - 30d
+          default: 7d
+        description: Time range for analytics
+      responses:
+        '200':
+          description: Analytics data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+        '403':
+          description: Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /admin/analytics/timeseries:
+    get:
+      summary: Get analytics timeseries (Admin only)
+      description: Get timeseries analytics data (requires is_admin=true)
+      parameters:
+      - name: metric
+        in: query
+        schema:
+          type: string
+          default: settings
+        description: Metric to retrieve
+      - name: range
+        in: query
+        schema:
+          type: string
+          enum:
+          - 1d
+          - 7d
+          - 30d
+          default: 7d
+        description: Time range
+      - name: interval
+        in: query
+        schema:
+          type: string
+          enum:
+          - hour
+          - day
+          default: day
+        description: Data interval
+      responses:
+        '200':
+          description: Timeseries data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeseriesResponse'
+        '403':
+          description: Admin privileges required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
